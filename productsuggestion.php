@@ -28,9 +28,28 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+if (file_exists(_PS_MODULE_DIR_. 'productsuggestion/vendor/autoload.php')) {
+    require_once _PS_MODULE_DIR_.  'productsuggestion/vendor/autoload.php';
+}
+
 class Productsuggestion extends Module
 {
     protected $config_form = false;
+
+    /**
+     * @param array $tabs
+     */
+    public $tabs;
+
+    /**
+     * @param Cleandev\Productsuggestion\Repository $repository
+     */
+    protected $repository;
+
+    /**
+     * @param array $languages
+     */
+    protected $languages;
 
     public function __construct()
     {
@@ -45,11 +64,20 @@ class Productsuggestion extends Module
          */
         $this->bootstrap = true;
 
-        parent::__construct();
+        $this->tabs = array(
+            array(
+                'name'=> $this->l('Product suggestions'),
+                'class_name'=>'AdminPsgconfig',
+                'parent'=>'AdminCatalog',
+            ),
+        );
 
+        $this->repository = new Cleandev\Productsuggestion\Repository($this); 
+        parent::__construct();
+        
         $this->displayName = $this->l('Suggestion des produits et accessoires ');
         $this->description = $this->l('Suggestion des produits et accessoires ');
-
+        
         $this->ps_versions_compliancy = array('min' => '1.6', 'max' => _PS_VERSION_);
     }
 
@@ -59,130 +87,94 @@ class Productsuggestion extends Module
      */
     public function install()
     {
-        Configuration::updateValue('PRODUCTSUGGESTION_LIVE_MODE', false);
-
-        return parent::install() &&
-            $this->registerHook('header') &&
-            $this->registerHook('displayBackOfficeHeader') &&
-            $this->registerHook('displayProductExtraContent');
+        return parent::install() && $this->repository->install();
     }
 
     public function uninstall()
     {
-        Configuration::deleteByName('PRODUCTSUGGESTION_LIVE_MODE');
-
-        return parent::uninstall();
+        return parent::uninstall() && $this->repository->uninstall();
     }
 
+    
     /**
      * Load the configuration form
      */
     public function getContent()
     {
-        /**
-         * If values have been submitted in the form, process.
-         */
-        if (((bool)Tools::isSubmit('submitProductsuggestionModule')) == true) {
-            $this->postProcess();
-        }
-
-        $this->context->smarty->assign('module_dir', $this->_path);
-
-        $output = $this->context->smarty->fetch($this->local_path.'views/templates/admin/configure.tpl');
-
-        return $output.$this->renderForm();
-    }
-
-    /**
-     * Create the form that will be displayed in the configuration of your module.
-     */
-    protected function renderForm()
-    {
-        $helper = new HelperForm();
-
-        $helper->show_toolbar = false;
-        $helper->table = $this->table;
-        $helper->module = $this;
-        $helper->default_form_language = $this->context->language->id;
-        $helper->allow_employee_form_lang = Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG', 0);
-
-        $helper->identifier = $this->identifier;
-        $helper->submit_action = 'submitProductsuggestionModule';
-        $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false)
-            .'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name;
-        $helper->token = Tools::getAdminTokenLite('AdminModules');
-
-        $helper->tpl_vars = array(
-            'fields_value' => $this->getConfigFormValues(), /* Add values for your inputs */
-            'languages' => $this->context->controller->getLanguages(),
-            'id_language' => $this->context->language->id,
+        
+        $process = $this->postProcess();
+        
+        $this->context->smarty->assign(
+            array(
+                'module_dir' => $this->_path,
+                'config_form' => $this->config_form,
+                'home_global' => $this->renderFormGlobal(),
+            )
         );
 
-        return $helper->generateForm(array($this->getConfigForm()));
+        return $process.$this->context->smarty->fetch($this->local_path.'views/templates/admin/configure.tpl');
+
     }
 
-    /**
-     * Create the structure of your form.
-     */
-    protected function getConfigForm()
-    {
-        return array(
-            'form' => array(
-                'legend' => array(
-                'title' => $this->l('Settings'),
-                'icon' => 'icon-cogs',
-                ),
-                'input' => array(
-                    array(
-                        'type' => 'switch',
-                        'label' => $this->l('Live mode'),
-                        'name' => 'PRODUCTSUGGESTION_LIVE_MODE',
-                        'is_bool' => true,
-                        'desc' => $this->l('Use this module in live mode'),
-                        'values' => array(
-                            array(
-                                'id' => 'active_on',
-                                'value' => true,
-                                'label' => $this->l('Enabled')
-                            ),
-                            array(
-                                'id' => 'active_off',
-                                'value' => false,
-                                'label' => $this->l('Disabled')
-                            )
+    public function renderFormGlobal(){
+        $form = new Cleandev\Productsuggestion\Utils\FormForm($this);
+        $form->setShowToolbar(false)
+            ->setTable($this->table)
+            ->setModule($this)
+            ->setDefaultFromLanguage($this->context->language->id)
+            ->setAllowEmployeFromLang(Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG', 0))
+            ->setIdentifier($this->identifier)
+            ->setSubmitAction('submitProductsuggestionModuleGlobal')
+            ->setCurrentIndex($this->context->link->getAdminLink('AdminModules', false)
+            .'&configure='.$this->name.'&tab_module='.$this->tab.'&module_name='.$this->name)
+            ->setToken(Tools::getAdminTokenLite('AdminModules'))
+            ->setTplVar([
+                'fields_value' => $this->getConfigGlobalFormValues(), /* Add values for your inputs */
+                'languages' => $this->context->controller->getLanguages(),
+                'id_language' => $this->context->language->id,
+            ])
+            /*->addField(
+                array(
+                    'type' => 'switch',
+                    'label' => $this->l('Display the age of the customer on the notices'),
+                    'name' => 'PRODUCTSUGGESTION_DISPLAY_YEAR_OLD',
+                    'is_bool' => true,
+                    'values' => array(
+                        array(
+                            'id' => 'active_on',
+                            'value' => true,
+                            'label' => $this->l('Enabled')
                         ),
+                        array(
+                            'id' => 'active_off',
+                            'value' => false,
+                            'label' => $this->l('Disabled')
+                        )
                     ),
-                    array(
-                        'col' => 3,
-                        'type' => 'text',
-                        'prefix' => '<i class="icon icon-envelope"></i>',
-                        'desc' => $this->l('Enter a valid email address'),
-                        'name' => 'PRODUCTSUGGESTION_ACCOUNT_EMAIL',
-                        'label' => $this->l('Email'),
-                    ),
-                    array(
-                        'type' => 'password',
-                        'name' => 'PRODUCTSUGGESTION_ACCOUNT_PASSWORD',
-                        'label' => $this->l('Password'),
-                    ),
-                ),
-                'submit' => array(
-                    'title' => $this->l('Save'),
-                ),
-            ),
-        );
+                )
+            )*/
+            ->setLegend([
+                'title' => $this->l('Global Settings'),
+                'icon' => 'icon-cogs',
+            ])->setSubmit([
+                'title' => $this->l('Save'),
+            ])
+        ;
+
+        return $form->make();
     }
 
     /**
      * Set values for the inputs.
      */
-    protected function getConfigFormValues()
+    protected function getConfigGlobalFormValues()
     {
-        return array(
-            'PRODUCTSUGGESTION_LIVE_MODE' => Configuration::get('PRODUCTSUGGESTION_LIVE_MODE', true),
-            'PRODUCTSUGGESTION_ACCOUNT_EMAIL' => Configuration::get('PRODUCTSUGGESTION_ACCOUNT_EMAIL', 'contact@prestashop.com'),
-            'PRODUCTSUGGESTION_ACCOUNT_PASSWORD' => Configuration::get('PRODUCTSUGGESTION_ACCOUNT_PASSWORD', null),
+        
+        $data =  array(
+            'PRODUCTSUGGESTION_DISPLAY_YEAR_OLD' => Configuration::get('PRODUCTSUGGESTION_DISPLAY_YEAR_OLD'),
         );
+        
+        return $data;
     }
 
     /**
@@ -190,11 +182,73 @@ class Productsuggestion extends Module
      */
     protected function postProcess()
     {
-        $form_values = $this->getConfigFormValues();
+        $multilang = array();
+        $form_values = array();
+        $specific_testimony = null;
 
-        foreach (array_keys($form_values) as $key) {
-            Configuration::updateValue($key, Tools::getValue($key));
+        $int_fields = [
+            'PRODUCTSUGGESTION_PRODUCT_NB_TO_DISPLAY',
+            'PRODUCTSUGGESTION_CART_NB_TO_DISPLAY',
+            'PRODUCTSUGGESTION_HOME_NB_TO_DISPLAY',
+        ];
+
+        if(Tools::isSubmit('submitProductsuggestionModuleGlobal')) {
+            $form_values = $this->getConfigGlobalFormValues();
+            $this->config_form = 'config-global';
+        } else {
+            return false;
         }
+        
+        if(!empty($form_values)) {
+            try{
+                $values = [];
+                if(!empty($multilang)) {
+                    $languages = Language::getLanguages();
+                    foreach($multilang as $k) {
+                        foreach($languages as $l) {
+                            $values[$k][$l['id_lang']] = Tools::getValue($k."_".$l['id_lang']);
+                        }
+                    }
+                }
+                foreach (array_keys($form_values) as $key) {
+                    if(in_array($key, $multilang)) {
+                        if(isset($values[$key])) {
+                            Configuration::updateValue($key, $values[$key]);
+                        }
+                    } else {
+                        if($key == $specific_testimony.'[]') {
+                            $lists = Tools::getValue($specific_testimony);
+                            if($lists && !empty($lists)) {
+                                Configuration::updateValue($specific_testimony, implode(',', $lists));
+                            }else {
+                                Configuration::updateValue($specific_testimony, "");
+                            }
+                        } else {
+                            if(in_array($key, $int_fields)){
+                                $v = Tools::getValue($key);
+                                if(!Validate::isInt($v)) {
+                                    $this->_errors[] = $this->l('Some fields are not valid') ;
+                                }
+                                Configuration::updateValue($key, (int)$v);
+                            } else {
+                                Configuration::updateValue($key, Tools::getValue($key));
+                            }
+                            
+                        }
+                    }
+                    
+                    
+                }
+                
+                if(!empty($this->_errors)) {
+                    return $this->displayError(current($this->_errors));
+                }
+                return $this->displayConfirmation($this->l('Configuration save with success'));
+            }catch(Exception $e) {
+                return $this->displayError($this->l('Something when wrong'));
+            }
+        }
+        
     }
 
     /**
@@ -217,8 +271,19 @@ class Productsuggestion extends Module
         $this->context->controller->addCSS($this->_path.'/views/css/front.css');
     }
 
-    public function hookDisplayProductExtraContent()
-    {
-        /* Place your code here. */
+    public function hookDisplayProductExtraContent($params) {
+        $psg = new Cleandev\Productsuggestion\Classes\Psg();
+        $suggestions = $psg->getProducts(Tools::getValue('id_product'));
+        if(empty($suggestions)) {
+            return null;
+        }
+        $this->context->smarty->assign('suggestions', $suggestions);
+        $content = $this->fetch('module:productsuggestion/views/templates/hook/products.tpl');
+        $array = array();
+        $array[] = (new PrestaShop\PrestaShop\Core\Product\ProductExtraContent())
+            ->setTitle($this->trans('Accessoires compatibles'))
+            ->setContent($content);
+
+        return $array;
     }
 }

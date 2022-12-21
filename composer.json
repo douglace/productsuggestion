@@ -1,0 +1,15 @@
+{
+    "name": "cleandev/productsuggestion",
+    "autoload": {
+        "psr-4": {
+            "Cleandev\\Productsuggestion\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "vexi",
+            "email": "kvdouglace@gmail.com"
+        }
+    ],
+    "require": {}
+}

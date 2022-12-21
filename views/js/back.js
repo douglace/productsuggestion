@@ -25,3 +25,66 @@
 * Don't forget to prefix your containers with your own identifier
 * to avoid any conflicts with others containers.
 */
+
+
+var _bo_v6_ = {
+    init: function() {
+        this.trigerMenuTab()
+    },
+    
+    trigerMenuTab: function() {
+        let menues = document.querySelectorAll('.v6-menu-left ul a'),
+            configsMenue = document.querySelectorAll('.configuration-anchor a');
+        Array.prototype.forEach.call(Object.keys(menues), (i) => {
+            let el = menues[i]
+            el.addEventListener('click', (event) => {
+                event.preventDefault()
+                this.displayHideTab(el)
+            })
+        })
+
+        Array.prototype.forEach.call(Object.keys(configsMenue), (i) => {
+            let el = configsMenue[i]
+            el.addEventListener('click', (event) => {
+                event.preventDefault()
+                this.displayHideConfig(el)
+            })
+        })
+    },
+    /**
+     * 
+     * @param {HTMLAnchorElement} anchor 
+     */
+    displayHideTab: function(anchor) {
+        let current_li = document.querySelector('.v6-menu-left .active')
+        let tab = document.querySelector('#' + anchor.dataset['id'])
+        let current_tab = document.querySelector('.v6-tab-item.active')
+        if (current_tab != tab) {
+            current_tab.classList.remove('active')
+            current_li.classList.remove('active')
+            tab.classList.add('active')
+            tab.scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
+            anchor.parentNode.classList.add('active')
+        }
+    },
+    /**
+     * 
+     * @param {HTMLAnchorElement} anchor 
+     */
+    displayHideConfig: function(anchor) {
+        let current_li = document.querySelector('.configuration-anchor .active')
+        let config = document.querySelector('#' + anchor.dataset['id'])
+        let current_config = document.querySelector('.configuration-tab-item.active')
+        if (current_config != config) {
+            current_config.classList.remove('active')
+            current_li.classList.remove('active')
+            config.classList.add('active')
+            config.scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
+            anchor.parentNode.classList.add('active')
+        }
+    }
+}
+
+window.addEventListener("DOMContentLoaded", (event) => {
+    _bo_v6_.init()
+});
